@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
-import { useStore, STATE_LABEL } from '../store';
+import { useTranslation } from 'react-i18next';
+import { useStore, tState } from '../store';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 
 export default function OfficialPanel() {
+  const { t } = useTranslation();
   const officialsData = useStore((s) => s.officialsData);
   const selectedOfficial = useStore((s) => s.selectedOfficial);
   const setSelectedOfficial = useStore((s) => s.setSelectedOfficial);
@@ -15,7 +17,7 @@ export default function OfficialPanel() {
   }, [loadOfficials]);
 
   if (!officialsData?.officials) {
-    return <div className="empty">⚠️ 请确保本地服务器已启动</div>;
+    return <div className="empty">{t('officials.serverNotStarted')}</div>;
   }
 
   const offs = officialsData.officials;
@@ -34,11 +36,11 @@ export default function OfficialPanel() {
       {/* Activity banner */}
       {alive.length > 0 && (
         <div className="off-activity">
-          <span>🟢 当前活跃：</span>
+          <span>{t('officials.currentlyActive')}</span>
           {alive.map((o) => (
             <span key={o.id} style={{ fontSize: 12 }}>{o.emoji} {o.role}</span>
           ))}
-          <span style={{ color: 'var(--muted)', fontSize: 11, marginLeft: 'auto' }}>其余官员待命</span>
+          <span style={{ color: 'var(--muted)', fontSize: 11, marginLeft: 'auto' }}>{t('officials.othersOnStandby')}</span>
         </div>
       )}
 
@@ -46,21 +48,21 @@ export default function OfficialPanel() {
       <div className="off-kpi">
         <div className="kpi">
           <div className="kpi-v" style={{ color: 'var(--acc)' }}>{offs.length}</div>
-          <div className="kpi-l">在职官员</div>
+          <div className="kpi-l">{t('officials.totalOfficials')}</div>
         </div>
         <div className="kpi">
           <div className="kpi-v" style={{ color: '#f5c842' }}>{totals.tasks_done || 0}</div>
-          <div className="kpi-l">累计完成旨意</div>
+          <div className="kpi-l">{t('officials.totalCompletedEdicts')}</div>
         </div>
         <div className="kpi">
           <div className="kpi-v" style={{ color: (totals.cost_cny || 0) > 20 ? 'var(--warn)' : 'var(--ok)' }}>
             ¥{totals.cost_cny || 0}
           </div>
-          <div className="kpi-l">累计费用（含缓存）</div>
+          <div className="kpi-l">{t('officials.totalCost')}</div>
         </div>
         <div className="kpi">
           <div className="kpi-v" style={{ fontSize: 16, paddingTop: 4 }}>{officialsData.top_official || '—'}</div>
-          <div className="kpi-l">功绩最高</div>
+          <div className="kpi-l">{t('officials.topMerit')}</div>
         </div>
       </div>
 
@@ -68,7 +70,7 @@ export default function OfficialPanel() {
       <div className="off-layout">
         {/* Left: Ranklist */}
         <div className="off-ranklist">
-          <div className="orl-hdr">功绩排行</div>
+          <div className="orl-hdr">{t('officials.meritRanking')}</div>
           {offs.map((o) => {
             const hb = o.heartbeat || { status: 'idle' };
             return (
@@ -85,7 +87,7 @@ export default function OfficialPanel() {
                   <div style={{ fontSize: 12, fontWeight: 700 }}>{o.role}</div>
                   <div style={{ fontSize: 10, color: 'var(--muted)' }}>{o.label}</div>
                 </span>
-                <span style={{ fontSize: 11 }}>{o.merit_score}分</span>
+                <span style={{ fontSize: 11 }}>{t('officials.meritPoints', { score: o.merit_score })}</span>
                 <span className={`dc-dot ${hb.status}`} style={{ width: 8, height: 8 }} />
               </div>
             );
@@ -97,7 +99,7 @@ export default function OfficialPanel() {
           {sel ? (
             <OfficialDetail official={sel} maxTk={maxTk} onOpenTask={setModalTaskId} />
           ) : (
-            <div className="empty">选择左侧官员查看详情</div>
+            <div className="empty">{t('officials.selectOfficialForDetails')}</div>
           )}
         </div>
       </div>
@@ -114,15 +116,16 @@ function OfficialDetail({
   maxTk: number;
   onOpenTask: (id: string) => void;
 }) {
-  const hb = o.heartbeat || { status: 'idle', label: '⚪ 待命' };
+  const { t } = useTranslation();
+  const hb = o.heartbeat || { status: 'idle', label: '⚪ ' + t('officials.standby') };
   const totTk = o.tokens_in + o.tokens_out + o.cache_read + o.cache_write;
   const edicts = o.participated_edicts || [];
 
   const tkBars = [
-    { l: '输入', v: o.tokens_in, color: '#6a9eff' },
-    { l: '输出', v: o.tokens_out, color: '#a07aff' },
-    { l: '缓存读', v: o.cache_read, color: '#2ecc8a' },
-    { l: '缓存写', v: o.cache_write, color: '#f5c842' },
+    { l: t('officials.tokenInput'), v: o.tokens_in, color: '#6a9eff' },
+    { l: t('officials.tokenOutput'), v: o.tokens_out, color: '#a07aff' },
+    { l: t('officials.cacheRead'), v: o.cache_read, color: '#2ecc8a' },
+    { l: t('officials.cacheWrite'), v: o.cache_write, color: '#f5c842' },
   ];
 
   return (
@@ -141,7 +144,7 @@ function OfficialDetail({
         </div>
         <div style={{ textAlign: 'right' }}>
           <div className={`hb ${hb.status}`} style={{ marginBottom: 4 }}>{hb.label}</div>
-          {o.last_active && <div style={{ fontSize: 10, color: 'var(--muted)' }}>活跃 {o.last_active}</div>}
+          {o.last_active && <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('officials.activeStatus')} {o.last_active}</div>}
           <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
             {o.sessions} 个会话 · {o.messages} 条消息
           </div>
@@ -150,19 +153,19 @@ function OfficialDetail({
 
       {/* Merit Stats */}
       <div style={{ marginBottom: 18 }}>
-        <div className="sec-title">功绩统计</div>
+        <div className="sec-title">{t('officials.meritStats')}</div>
         <div style={{ display: 'flex', gap: 16 }}>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--ok)' }}>{o.tasks_done}</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)' }}>完成旨意</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('officials.completedEdicts')}</div>
           </div>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--warn)' }}>{o.tasks_active}</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)' }}>执行中</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('officials.inExecution')}</div>
           </div>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--acc)' }}>{o.flow_participations}</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)' }}>流转参与</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('officials.flowParticipation')}</div>
           </div>
         </div>
       </div>
@@ -185,21 +188,21 @@ function OfficialDetail({
 
       {/* Cost */}
       <div style={{ marginBottom: 18 }}>
-        <div className="sec-title">累计费用</div>
+        <div className="sec-title">{t('officials.accumulatedCost')}</div>
         <div style={{ display: 'flex', gap: 10 }}>
           <span style={{ fontSize: 12, color: o.cost_cny > 10 ? 'var(--danger)' : o.cost_cny > 3 ? 'var(--warn)' : 'var(--ok)' }}>
-            <b>¥{o.cost_cny}</b> 人民币
+            <b>¥{o.cost_cny}</b> {t('officials.cny')}
           </span>
-          <span style={{ fontSize: 12 }}><b>${o.cost_usd}</b> 美元</span>
+          <span style={{ fontSize: 12 }}><b>${o.cost_usd}</b> {t('officials.usd')}</span>
           <span style={{ fontSize: 11, color: 'var(--muted)' }}>总计 {totTk.toLocaleString()} tokens</span>
         </div>
       </div>
 
       {/* Participated Edicts */}
       <div>
-        <div className="sec-title">参与旨意（{edicts.length} 道）</div>
+        <div className="sec-title">{t('officials.participatedEdicts', { count: edicts.length })}</div>
         {edicts.length === 0 ? (
-          <div style={{ fontSize: 12, color: 'var(--muted)', padding: '8px 0' }}>暂无旨意记录</div>
+          <div style={{ fontSize: 12, color: 'var(--muted)', padding: '8px 0' }}>{t('officials.noEdictRecords')}</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {edicts.map((e) => (
@@ -210,7 +213,7 @@ function OfficialDetail({
               >
                 <span style={{ fontSize: 10, color: 'var(--acc)', fontWeight: 700 }}>{e.id}</span>
                 <span style={{ flex: 1, fontSize: 12 }}>{e.title.substring(0, 35)}</span>
-                <span className={`tag st-${e.state}`} style={{ fontSize: 10 }}>{STATE_LABEL[e.state] || e.state}</span>
+                <span className={`tag st-${e.state}`} style={{ fontSize: 10 }}>{tState(e.state)}</span>
               </div>
             ))}
           </div>

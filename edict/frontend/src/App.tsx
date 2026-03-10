@@ -1,4 +1,6 @@
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import i18n from './i18n';
 import { useStore, TAB_DEFS, startPolling, stopPolling, isEdict, isArchived } from './store';
 import EdictBoard from './components/EdictBoard';
 import MonitorPanel from './components/MonitorPanel';
@@ -15,6 +17,7 @@ import Toaster from './components/Toaster';
 import CourtCeremony from './components/CourtCeremony';
 
 export default function App() {
+  const { t } = useTranslation();
   const activeTab = useStore((s) => s.activeTab);
   const setActiveTab = useStore((s) => s.setActiveTab);
   const liveStatus = useStore((s) => s.liveStatus);
@@ -40,7 +43,7 @@ export default function App() {
     if (key === 'memorials') return String(edicts.filter((t) => ['Done', 'Cancelled'].includes(t.state)).length);
     if (key === 'monitor') {
       const activeDepts = tasks.filter((t) => isEdict(t) && t.state === 'Doing').length;
-      return activeDepts + '活跃';
+      return activeDepts + t('common.active');
     }
     return '';
   };
@@ -50,16 +53,25 @@ export default function App() {
       {/* ── Header ── */}
       <div className="hdr">
         <div>
-          <div className="logo">三省六部 · 总控台</div>
+          <div className="logo">{t('header.logo')}</div>
           <div className="sub-text">OpenClaw Sansheng-Liubu Dashboard</div>
         </div>
         <div className="hdr-r">
+          <select
+            value={i18n.language.startsWith('zh') ? 'zh' : 'en'}
+            onChange={(e) => i18n.changeLanguage(e.target.value)}
+            className="lang-switcher"
+            style={{ background: 'var(--panel)', color: 'var(--text)', border: '1px solid var(--line)', borderRadius: 6, padding: '2px 6px', fontSize: 11, cursor: 'pointer' }}
+          >
+            <option value="en">EN</option>
+            <option value="zh">中文</option>
+          </select>
           <span className={`chip ${syncOk ? 'ok' : syncOk === false ? 'err' : ''}`}>
-            {syncOk ? '✅ 同步正常' : syncOk === false ? '❌ 服务器未启动' : '⏳ 连接中…'}
+            {syncOk ? t('header.syncOk') : syncOk === false ? t('header.syncErr') : t('header.syncPending')}
           </span>
-          <span className="chip">{activeEdicts.length} 道旨意</span>
+          <span className="chip">{t('header.edictCount', { count: activeEdicts.length })}</span>
           <button className="btn-refresh" onClick={() => loadAll()}>
-            ⟳ 刷新
+            {t('header.refresh')}
           </button>
           <span style={{ fontSize: 11, color: 'var(--muted)' }}>⟳ {countdown}s</span>
         </div>
@@ -67,14 +79,14 @@ export default function App() {
 
       {/* ── Tabs ── */}
       <div className="tabs">
-        {TAB_DEFS.map((t) => (
+        {TAB_DEFS.map((tab) => (
           <div
-            key={t.key}
-            className={`tab ${activeTab === t.key ? 'active' : ''}`}
-            onClick={() => setActiveTab(t.key)}
+            key={tab.key}
+            className={`tab ${activeTab === tab.key ? 'active' : ''}`}
+            onClick={() => setActiveTab(tab.key)}
           >
-            {t.icon} {t.label}
-            {tabBadge(t.key) && <span className="tbadge">{tabBadge(t.key)}</span>}
+            {tab.icon} {t(tab.labelKey)}
+            {tabBadge(tab.key) && <span className="tbadge">{tabBadge(tab.key)}</span>}
           </div>
         ))}
       </div>

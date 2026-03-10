@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { useStore, getPipeStatus, deptColor, stateLabel, STATE_LABEL } from '../store';
+import { useTranslation } from 'react-i18next';
+import { useStore, getPipeStatus, deptColor, stateLabel, STATE_LABEL, tOrg, tState, tKey, ORG_TO_ID } from '../store';
 import { api } from '../api';
 import type {
   Task,
@@ -11,35 +12,25 @@ import type {
 } from '../api';
 
 const AGENT_LABELS: Record<string, string> = {
-  main: '太子',
-  zhongshu: '中书省',
-  menxia: '门下省',
-  shangshu: '尚书省',
-  libu: '礼部',
-  hubu: '户部',
-  bingbu: '兵部',
-  xingbu: '刑部',
-  gongbu: '工部',
-  libu_hr: '吏部',
-  zaochao: '钦天监',
+  main: 'depts.crownPrince', zhongshu: 'depts.zhongshu', menxia: 'depts.menxia',
+  shangshu: 'depts.shangshu', libu: 'depts.libu', hubu: 'depts.hubu',
+  bingbu: 'depts.bingbu', xingbu: 'depts.xingbu', gongbu: 'depts.gongbu',
+  libu_hr: 'depts.libu_hr', zaochao: 'depts.zaochao',
 };
 
 const NEXT_LABELS: Record<string, string> = {
-  Taizi: '中书省起草',
-  Zhongshu: '门下省审议',
-  Menxia: '尚书省派发',
-  Assigned: '开始执行',
-  Doing: '进入审查',
-  Review: '完成',
+  Taizi: 'taskModal.nextZhongshu', Zhongshu: 'taskModal.nextMenxia',
+  Menxia: 'taskModal.nextShangshu', Assigned: 'taskModal.nextAssigned',
+  Doing: 'taskModal.nextDoing', Review: 'taskModal.nextReview',
 };
 
-function fmtStalled(sec: number): string {
+function fmtStalled(sec: number, t: (key: string, opts?: Record<string, unknown>) => string): string {
   const v = Math.max(0, sec);
-  if (v < 60) return `${v}秒`;
-  if (v < 3600) return `${Math.floor(v / 60)}分${v % 60}秒`;
+  if (v < 60) return `${v}${t('time.seconds')}`;
+  if (v < 3600) return `${Math.floor(v / 60)}${t('time.minutes')}${v % 60}${t('time.seconds')}`;
   const h = Math.floor(v / 3600);
   const m = Math.floor((v % 3600) / 60);
-  return `${h}小时${m}分`;
+  return `${h}${t('time.hours')}${m}${t('time.minutes')}`;
 }
 
 function fmtActivityTime(ts: number | string | undefined): string {
@@ -53,6 +44,7 @@ function fmtActivityTime(ts: number | string | undefined): string {
 }
 
 export default function TaskModal() {
+  const { t } = useTranslation();
   const modalTaskId = useStore((s) => s.modalTaskId);
   const setModalTaskId = useStore((s) => s.setModalTaskId);
   const liveStatus = useStore((s) => s.liveStatus);
@@ -118,7 +110,7 @@ export default function TaskModal() {
 
   const stages = getPipeStatus(task);
   const activeStage = stages.find((s) => s.status === 'active');
-  const hb = task.heartbeat || { status: 'unknown' as const, label: '⚪ 无数据' };
+  const hb = task.heartbeat || { status: 'unknown' as const, label: t('taskModal.noHeartbeat') };
   const flowLog = task.flow_log || [];
   const todos = task.todos || [];
   const todoDone = todos.filter((x) => x.status === 'completed').length;
@@ -130,38 +122,38 @@ export default function TaskModal() {
     try {
       const r = await api.taskAction(task.id, action, reason);
       if (r.ok) {
-        toast(r.message || '操作成功', 'ok');
+        toast(r.message || t('common.actionSuccess'), 'ok');
         loadAll();
         close();
       } else {
-        toast(r.error || '操作失败', 'err');
+        toast(r.error || t('common.actionFailed'), 'err');
       }
     } catch {
-      toast('服务器连接失败', 'err');
+      toast(t('common.serverError'), 'err');
     }
   };
 
   const doReview = async (action: string) => {
-    const labels: Record<string, string> = { approve: '准奏', reject: '封驳' };
-    const comment = prompt(`${labels[action]} ${task.id}\n\n请输入批注（可留空）：`);
+    const labels: Record<string, string> = { approve: t('taskModal.approve'), reject: t('taskModal.reject') };
+    const comment = prompt(`${labels[action]} ${task.id}\n\n${t('taskModal.enterComment')}`);
     if (comment === null) return;
     try {
       const r = await api.reviewAction(task.id, action, comment || '');
       if (r.ok) {
-        toast(`✅ ${task.id} 已${labels[action]}`, 'ok');
+        toast(action === 'approve' ? t('taskModal.approved', { id: task.id }) : t('taskModal.rejected', { id: task.id }), 'ok');
         loadAll();
         close();
       } else {
-        toast(r.error || '操作失败', 'err');
+        toast(r.error || t('common.actionFailed'), 'err');
       }
     } catch {
-      toast('服务器连接失败', 'err');
+      toast(t('common.serverError'), 'err');
     }
   };
 
   const doAdvance = async () => {
-    const next = NEXT_LABELS[task.state] || '下一步';
-    const comment = prompt(`⏩ 手动推进 ${task.id}\n当前: ${task.state} → 下一步: ${next}\n\n请输入说明（可留空）：`);
+    const next = NEXT_LABELS[task.state] ? t(NEXT_LABELS[task.state]) : t('taskModal.nextStep');
+    const comment = prompt(`⏩ ${t('taskModal.advanceBtn')} ${task.id}\n${t('taskModal.currentStage')}: ${task.state} → ${t('taskModal.nextStep')}: ${next}\n\n${t('taskModal.enterComment')}`);
     if (comment === null) return;
     try {
       const r = await api.advanceState(task.id, comment || '');
@@ -170,10 +162,10 @@ export default function TaskModal() {
         loadAll();
         close();
       } else {
-        toast(r.error || '推进失败', 'err');
+        toast(r.error || t('taskModal.advanceFailed'), 'err');
       }
     } catch {
-      toast('服务器连接失败', 'err');
+      toast(t('common.serverError'), 'err');
     }
   };
 
@@ -181,16 +173,16 @@ export default function TaskModal() {
     if (action === 'scan') {
       try {
         const r = await api.schedulerScan(180);
-        if (r.ok) toast(`🔍 扫描完成：${r.count || 0} 个动作`, 'ok');
-        else toast(r.error || '扫描失败', 'err');
+        if (r.ok) toast(t('taskModal.scanComplete', { count: r.count || 0 }), 'ok');
+        else toast(r.error || t('taskModal.scanFailed'), 'err');
         fetchSched();
       } catch {
-        toast('服务器连接失败', 'err');
+        toast(t('common.serverError'), 'err');
       }
       return;
     }
-    const labels: Record<string, string> = { retry: '重试', escalate: '升级', rollback: '回滚' };
-    const reason = prompt(`请输入${labels[action]}原因（可留空）：`);
+    const labels: Record<string, string> = { retry: t('taskModal.retry'), escalate: t('taskModal.escalate'), rollback: t('taskModal.rollback') };
+    const reason = prompt(`${labels[action]}${t('taskModal.enterStopReason')}`);
     if (reason === null) return;
     const handlers: Record<string, (id: string, r: string) => Promise<{ ok: boolean; message?: string; error?: string }>> = {
       retry: api.schedulerRetry,
@@ -199,24 +191,24 @@ export default function TaskModal() {
     };
     try {
       const r = await handlers[action](task.id, reason);
-      if (r.ok) toast(r.message || '操作成功', 'ok');
-      else toast(r.error || '操作失败', 'err');
+      if (r.ok) toast(r.message || t('common.actionSuccess'), 'ok');
+      else toast(r.error || t('common.actionFailed'), 'err');
       fetchSched();
       loadAll();
     } catch {
-      toast('服务器连接失败', 'err');
+      toast(t('common.serverError'), 'err');
     }
   };
 
   const handleStop = () => {
-    const reason = prompt('请输入叫停原因（可留空）：');
+    const reason = prompt(t('taskModal.enterStopReason'));
     if (reason === null) return;
     doTaskAction('stop', reason);
   };
 
   const handleCancel = () => {
-    if (!confirm(`确定要取消 ${task.id} 吗？`)) return;
-    const reason = prompt('请输入取消原因（可留空）：');
+    if (!confirm(t('taskModal.confirmCancel', { id: task.id }))) return;
+    const reason = prompt(t('taskModal.enterCancelReason'));
     if (reason === null) return;
     doTaskAction('cancel', reason);
   };
@@ -231,15 +223,15 @@ export default function TaskModal() {
         <button className="modal-close" onClick={close}>✕</button>
         <div className="modal-body">
           <div className="modal-id">{task.id}</div>
-          <div className="modal-title">{task.title || '(无标题)'}</div>
+          <div className="modal-title">{task.title || t('common.noTitle')}</div>
 
           {/* Current Stage Banner */}
           {activeStage && (
             <div className="cur-stage">
               <div className="cs-icon">{activeStage.icon}</div>
               <div className="cs-info">
-                <div className="cs-dept" style={{ color: deptColor(activeStage.dept) }}>{activeStage.dept}</div>
-                <div className="cs-action">当前阶段：{activeStage.action}</div>
+                <div className="cs-dept" style={{ color: deptColor(activeStage.dept) }}>{t('depts.' + activeStage.dept)}</div>
+                <div className="cs-action">{t('taskModal.currentStage')}{t('pipe.' + activeStage.action)}</div>
               </div>
               <span className={`hb ${hb.status} cs-hb`}>{hb.label}</span>
             </div>
@@ -253,9 +245,9 @@ export default function TaskModal() {
                   {s.status === 'done' && <div className="mp-done-tick">✓</div>}
                   <div className="mp-icon">{s.icon}</div>
                   <div className="mp-dept" style={s.status === 'active' ? { color: 'var(--acc)' } : s.status === 'done' ? { color: 'var(--ok)' } : {}}>
-                    {s.dept}
+                    {t('depts.' + s.dept)}
                   </div>
-                  <div className="mp-action">{s.action}</div>
+                  <div className="mp-action">{t('pipe.' + s.action)}</div>
                 </div>
                 {i < stages.length - 1 && (
                   <div className="mp-arrow" style={s.status === 'done' ? { color: 'var(--ok)', opacity: 0.6 } : {}}>→</div>
@@ -268,51 +260,51 @@ export default function TaskModal() {
           <div className="task-actions">
             {canStop && (
               <>
-                <button className="btn-action btn-stop" onClick={handleStop}>⏸ 叫停任务</button>
-                <button className="btn-action btn-cancel" onClick={handleCancel}>🚫 取消任务</button>
+                <button className="btn-action btn-stop" onClick={handleStop}>{t('taskModal.stopTask')}</button>
+                <button className="btn-action btn-cancel" onClick={handleCancel}>{t('taskModal.cancelTask')}</button>
               </>
             )}
             {canResume && (
-              <button className="btn-action btn-resume" onClick={() => doTaskAction('resume', '恢复执行')}>▶️ 恢复执行</button>
+              <button className="btn-action btn-resume" onClick={() => doTaskAction('resume', t('taskModal.resumeAction'))}>{t('taskModal.resumeExecution')}</button>
             )}
             {['Review', 'Menxia'].includes(task.state) && (
               <>
-                <button className="btn-action" style={{ background: '#2ecc8a22', color: '#2ecc8a', border: '1px solid #2ecc8a44' }} onClick={() => doReview('approve')}>✅ 准奏</button>
-                <button className="btn-action" style={{ background: '#ff527022', color: '#ff5270', border: '1px solid #ff527044' }} onClick={() => doReview('reject')}>🚫 封驳</button>
+                <button className="btn-action" style={{ background: '#2ecc8a22', color: '#2ecc8a', border: '1px solid #2ecc8a44' }} onClick={() => doReview('approve')}>{t('taskModal.approveBtn')}</button>
+                <button className="btn-action" style={{ background: '#ff527022', color: '#ff5270', border: '1px solid #ff527044' }} onClick={() => doReview('reject')}>{t('taskModal.rejectBtn')}</button>
               </>
             )}
             {['Pending', 'Taizi', 'Zhongshu', 'Menxia', 'Assigned', 'Doing', 'Review', 'Next'].includes(task.state) && (
-              <button className="btn-action" style={{ background: '#7c5cfc18', color: '#7c5cfc', border: '1px solid #7c5cfc44' }} onClick={doAdvance}>⏩ 推进到下一步</button>
+              <button className="btn-action" style={{ background: '#7c5cfc18', color: '#7c5cfc', border: '1px solid #7c5cfc44' }} onClick={doAdvance}>{t('taskModal.advanceBtn')}</button>
             )}
           </div>
 
           {/* Scheduler Section */}
           <div className="sched-section">
             <div className="sched-head">
-              <span className="sched-title">🧭 太子调度</span>
+              <span className="sched-title">{t('taskModal.princeScheduler')}</span>
               <span className="sched-status">
-                {sched ? `${sched.enabled === false ? '已禁用' : '运行中'} · 阈值 ${sched.stallThresholdSec || 180}s` : '加载中...'}
+                {sched ? `${sched.enabled === false ? t('taskModal.disabled') : t('taskModal.running')} · ${t('taskModal.stalledDuration')} ${sched.stallThresholdSec || 180}s` : t('common.loading')}
               </span>
             </div>
             <div className="sched-grid">
-              <div className="sched-kpi"><div className="k">停滞时长</div><div className="v">{fmtStalled(stalledSec)}</div></div>
-              <div className="sched-kpi"><div className="k">重试次数</div><div className="v">{sched?.retryCount || 0}</div></div>
-              <div className="sched-kpi"><div className="k">升级级别</div><div className="v">{!sched?.escalationLevel ? '无' : sched.escalationLevel === 1 ? '门下省' : '尚书省'}</div></div>
-              <div className="sched-kpi"><div className="k">派发状态</div><div className="v">{sched?.lastDispatchStatus || 'idle'}</div></div>
+              <div className="sched-kpi"><div className="k">{t('taskModal.stalledDuration')}</div><div className="v">{fmtStalled(stalledSec, t)}</div></div>
+              <div className="sched-kpi"><div className="k">{t('taskModal.retryCount')}</div><div className="v">{sched?.retryCount || 0}</div></div>
+              <div className="sched-kpi"><div className="k">{t('taskModal.escalationLevel')}</div><div className="v">{!sched?.escalationLevel ? t('common.none') : sched.escalationLevel === 1 ? t('taskModal.chancellery') : t('taskModal.executiveBureau')}</div></div>
+              <div className="sched-kpi"><div className="k">{t('taskModal.dispatchStatus')}</div><div className="v">{sched?.lastDispatchStatus || 'idle'}</div></div>
             </div>
             {sched && (
               <div className="sched-line">
-                {sched.lastProgressAt && <span>最近进展 {(sched.lastProgressAt || '').replace('T', ' ').substring(0, 19)}</span>}
-                {sched.lastDispatchAt && <span>最近派发 {(sched.lastDispatchAt || '').replace('T', ' ').substring(0, 19)}</span>}
-                <span>自动回滚 {sched.autoRollback === false ? '关闭' : '开启'}</span>
-                {sched.lastDispatchAgent && <span>目标 {sched.lastDispatchAgent}</span>}
+                {sched.lastProgressAt && <span>{t('taskModal.recentProgress')} {(sched.lastProgressAt || '').replace('T', ' ').substring(0, 19)}</span>}
+                {sched.lastDispatchAt && <span>{t('taskModal.recentDispatch')} {(sched.lastDispatchAt || '').replace('T', ' ').substring(0, 19)}</span>}
+                <span>{t('taskModal.autoRollback')} {sched.autoRollback === false ? t('taskModal.off') : t('taskModal.on')}</span>
+                {sched.lastDispatchAgent && <span>{t('taskModal.target')} {sched.lastDispatchAgent}</span>}
               </div>
             )}
             <div className="sched-actions">
-              <button className="sched-btn" onClick={() => doSchedAction('retry')}>🔁 重试派发</button>
-              <button className="sched-btn warn" onClick={() => doSchedAction('escalate')}>📣 升级协调</button>
-              <button className="sched-btn danger" onClick={() => doSchedAction('rollback')}>↩️ 回滚稳定点</button>
-              <button className="sched-btn" onClick={() => doSchedAction('scan')}>🔍 立即扫描</button>
+              <button className="sched-btn" onClick={() => doSchedAction('retry')}>{t('taskModal.retryDispatch')}</button>
+              <button className="sched-btn warn" onClick={() => doSchedAction('escalate')}>{t('taskModal.escalateCoord')}</button>
+              <button className="sched-btn danger" onClick={() => doSchedAction('rollback')}>{t('taskModal.rollbackStable')}</button>
+              <button className="sched-btn" onClick={() => doSchedAction('scan')}>{t('taskModal.scanNow')}</button>
             </div>
           </div>
 
@@ -325,31 +317,31 @@ export default function TaskModal() {
           <div className="m-section">
             <div className="m-rows">
               <div className="m-row">
-                <div className="mr-label">状态</div>
+                <div className="mr-label">{t('taskModal.statusLabel')}</div>
                 <div className="mr-val">
                   <span className={`tag st-${task.state}`}>{stateLabel(task)}</span>
-                  {(task.review_round || 0) > 0 && <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 8 }}>共磋商 {task.review_round} 轮</span>}
+                  {(task.review_round || 0) > 0 && <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 8 }}>{t('taskModal.consultationRounds', { count: task.review_round })}</span>}
                 </div>
               </div>
               <div className="m-row">
-                <div className="mr-label">执行部门</div>
-                <div className="mr-val"><span className={`tag dt-${(task.org || '').replace(/\s/g, '')}`}>{task.org || '—'}</span></div>
+                <div className="mr-label">{t('taskModal.executingDept')}</div>
+                <div className="mr-val"><span className={`tag dt-${(task.org || '').replace(/\s/g, '')}`}>{tOrg(task.org) || '—'}</span></div>
               </div>
               {task.eta && task.eta !== '-' && (
-                <div className="m-row"><div className="mr-label">预计完成</div><div className="mr-val">{task.eta}</div></div>
+                <div className="m-row"><div className="mr-label">{t('taskModal.estimatedCompletion')}</div><div className="mr-val">{task.eta}</div></div>
               )}
               {task.block && task.block !== '无' && task.block !== '-' && (
-                <div className="m-row"><div className="mr-label" style={{ color: 'var(--danger)' }}>阻塞项</div><div className="mr-val" style={{ color: 'var(--danger)' }}>{task.block}</div></div>
+                <div className="m-row"><div className="mr-label" style={{ color: 'var(--danger)' }}>{t('taskModal.blocker')}</div><div className="mr-val" style={{ color: 'var(--danger)' }}>{task.block}</div></div>
               )}
               {task.now && task.now !== '-' && (
                 <div className="m-row" style={{ gridColumn: '1/-1' }}>
-                  <div className="mr-label">当前进展</div>
+                  <div className="mr-label">{t('taskModal.currentProgress')}</div>
                   <div className="mr-val" style={{ fontWeight: 400, fontSize: 12 }}>{task.now}</div>
                 </div>
               )}
               {task.ac && (
                 <div className="m-row" style={{ gridColumn: '1/-1' }}>
-                  <div className="mr-label">验收标准</div>
+                  <div className="mr-label">{t('taskModal.acceptanceCriteria')}</div>
                   <div className="mr-val" style={{ fontWeight: 400, fontSize: 12 }}>{task.ac}</div>
                 </div>
               )}
@@ -359,7 +351,7 @@ export default function TaskModal() {
           {/* Flow Log */}
           {flowLog.length > 0 && (
             <div className="m-section">
-              <div className="m-sec-label">流转日志（{flowLog.length} 条）</div>
+              <div className="m-sec-label">{t('taskModal.flowLog', { count: flowLog.length })}</div>
               <div className="fl-timeline">
                 {flowLog.map((fl, i) => {
                   const col = deptColor(fl.from || '');
@@ -385,7 +377,7 @@ export default function TaskModal() {
           {/* Output */}
           {task.output && task.output !== '-' && task.output !== '' && (
             <div className="m-section">
-              <div className="m-sec-label">产出物</div>
+              <div className="m-sec-label">{t('taskModal.outputLabel')}</div>
               <code>{task.output}</code>
             </div>
           )}
@@ -399,11 +391,12 @@ export default function TaskModal() {
 }
 
 function TodoSection({ todos, todoDone, todoTotal }: { todos: TodoItem[]; todoDone: number; todoTotal: number }) {
+  const { t } = useTranslation();
   return (
     <div className="todo-section">
       <div className="todo-header">
         <div className="m-sec-label" style={{ marginBottom: 0, border: 'none', padding: 0 }}>
-          子任务清单（{todoDone}/{todoTotal}）
+          {t('taskModal.todoList', { done: todoDone, total: todoTotal })}
         </div>
         <div className="todo-progress">
           <div className="todo-bar">
@@ -415,7 +408,7 @@ function TodoSection({ todos, todoDone, todoTotal }: { todos: TodoItem[]; todoDo
       <div className="todo-list">
         {todos.map((td) => {
           const ico = td.status === 'completed' ? '✅' : td.status === 'in-progress' ? '🔄' : '⬜';
-          const stLabel = td.status === 'completed' ? '已完成' : td.status === 'in-progress' ? '进行中' : '待开始';
+          const stLabel = td.status === 'completed' ? t('taskModal.todoCompleted') : td.status === 'in-progress' ? t('taskModal.todoInProgress') : t('taskModal.todoNotStarted');
           const stCls = td.status === 'completed' ? 's-done' : td.status === 'in-progress' ? 's-progress' : 's-notstarted';
           const itemCls = td.status === 'completed' ? 'done' : '';
           return (
@@ -444,6 +437,7 @@ function LiveActivitySection({
   isDone: boolean;
   logRef: React.RefObject<HTMLDivElement | null>;
 }) {
+  const { t } = useTranslation();
   if (!data) return null;
 
   const activity = data.activity || [];
@@ -457,8 +451,8 @@ function LiveActivitySection({
 
   const agentParts: string[] = [];
   if (data.agentLabel) agentParts.push(data.agentLabel);
-  if (data.relatedAgents && data.relatedAgents.length > 1) agentParts.push(`${data.relatedAgents.length}个 Agent`);
-  if (data.lastActive) agentParts.push(`最后活跃: ${data.lastActive}`);
+  if (data.relatedAgents && data.relatedAgents.length > 1) agentParts.push(`${data.relatedAgents.length} Agents`);
+  if (data.lastActive) agentParts.push(`${t('taskModal.lastUpdate')}: ${data.lastActive}`);
 
   // Phase durations
   const phaseDurations = data.phaseDurations || [];
@@ -490,30 +484,30 @@ function LiveActivitySection({
       <div className="la-header">
         <span className="la-title">
           <span className={`la-dot${isActive ? '' : ' idle'}`} />
-          {isDone ? '执行回顾' : '实时动态'}
+          {isDone ? t('taskModal.executionReview') : t('taskModal.liveActivity')}
         </span>
-        <span className="la-agent">{agentParts.join(' · ') || '加载中...'}</span>
+        <span className="la-agent">{agentParts.join(' · ') || t('common.loading')}</span>
       </div>
 
       {/* Phase Bars */}
       {phaseDurations.length > 0 && (
         <div style={{ padding: '4px 0 8px', borderBottom: '1px solid var(--line)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 600 }}>⏱ 阶段耗时</span>
-            {data.totalDuration && <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--muted)' }}>总耗时 {data.totalDuration}</span>}
+            <span style={{ fontSize: 11, fontWeight: 600 }}>{t('taskModal.phaseDuration')}</span>
+            {data.totalDuration && <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--muted)' }}>{t('taskModal.totalDuration')} {data.totalDuration}</span>}
           </div>
           {phaseDurations.map((p, i) => {
             const pct = Math.max(5, Math.round(((p.durationSec || 1) / maxDur) * 100));
             const color = phaseColors[p.phase] || '#6b7280';
             return (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '2px 0', fontSize: 11 }}>
-                <span style={{ minWidth: 48, color: 'var(--muted)', textAlign: 'right' }}>{p.phase}</span>
+                <span style={{ minWidth: 48, color: 'var(--muted)', textAlign: 'right' }}>{tOrg(p.phase)}</span>
                 <div style={{ flex: 1, height: 14, background: 'var(--panel)', borderRadius: 3, overflow: 'hidden' }}>
                   <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 3, opacity: p.ongoing ? 0.6 : 0.85 }} />
                 </div>
                 <span style={{ minWidth: 60, fontSize: 10, color: 'var(--muted)' }}>
                   {p.durationText}
-                  {p.ongoing && <span style={{ fontSize: 9, color: '#60a5fa' }}> ●进行中</span>}
+                  {p.ongoing && <span style={{ fontSize: 9, color: '#60a5fa' }}> {t('taskModal.ongoing')}</span>}
                 </span>
               </div>
             );
@@ -525,9 +519,9 @@ function LiveActivitySection({
       {ts && (
         <div style={{ padding: '4px 0 8px', borderBottom: '1px solid var(--line)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600 }}>📊 执行进度</span>
+            <span style={{ fontSize: 11, fontWeight: 600 }}>{t('taskModal.executionProgress')}</span>
             <span style={{ fontSize: 20, fontWeight: 700, color: ts.percent >= 100 ? '#22c55e' : ts.percent >= 50 ? '#60a5fa' : 'var(--text)' }}>{ts.percent}%</span>
-            <span style={{ fontSize: 10, color: 'var(--muted)' }}>✅{ts.completed} 🔄{ts.inProgress} ⬜{ts.notStarted} / 共{ts.total}项</span>
+            <span style={{ fontSize: 10, color: 'var(--muted)' }}>✅{ts.completed} 🔄{ts.inProgress} ⬜{ts.notStarted} / {t('taskModal.totalItems', { count: ts.total })}</span>
           </div>
           <div style={{ height: 8, background: 'var(--panel)', borderRadius: 4, overflow: 'hidden', display: 'flex' }}>
             <div style={{ width: `${ts.total ? (ts.completed / ts.total) * 100 : 0}%`, background: '#22c55e', transition: 'width .3s' }} />
@@ -539,12 +533,12 @@ function LiveActivitySection({
       {/* Resource Summary */}
       {rs && (rs.totalTokens || rs.totalCost) && (
         <div style={{ padding: '4px 0 8px', borderBottom: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center' }}>
-          <span style={{ fontSize: 11, fontWeight: 600 }}>📈 资源消耗</span>
+          <span style={{ fontSize: 11, fontWeight: 600 }}>{t('taskModal.resourceUsage')}</span>
           {rs.totalTokens != null && <span style={{ fontSize: 11, color: 'var(--muted)' }}>🔢 {rs.totalTokens.toLocaleString()} tokens</span>}
           {rs.totalCost != null && <span style={{ fontSize: 11, color: 'var(--muted)' }}>💰 ${rs.totalCost.toFixed(4)}</span>}
           {rs.totalElapsedSec != null && (
             <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-              ⏳ {rs.totalElapsedSec >= 60 ? `${Math.floor(rs.totalElapsedSec / 60)}分` : ''}{rs.totalElapsedSec % 60}秒
+              ⏳ {rs.totalElapsedSec >= 60 ? `${Math.floor(rs.totalElapsedSec / 60)}${t('taskModal.elapsedMin')}` : ''}{rs.totalElapsedSec % 60}{t('taskModal.elapsedSec')}
             </span>
           )}
         </div>
@@ -569,14 +563,14 @@ function LiveActivitySection({
         {grouped.size > 0 ? (
           <div className="la-groups">
             {Array.from(grouped.entries()).map(([agent, items]) => {
-              const label = AGENT_LABELS[agent] || agent || '未标识';
+              const label = t(AGENT_LABELS[agent]) || agent || t('taskModal.unidentified');
               const last = items[items.length - 1];
               const lastTime = last?.at ? fmtActivityTime(last.at) : '--:--:--';
               return (
                 <div className="la-group" key={agent}>
                   <div className="la-group-hd">
                     <span className="name">{label}</span>
-                    <span>最近更新 {lastTime}</span>
+                    <span>{t('taskModal.lastUpdate')} {lastTime}</span>
                   </div>
                   <div className="la-group-bd">
                     {items.map((a, i) => (
@@ -590,7 +584,7 @@ function LiveActivitySection({
         ) : (
           !flowItems.length && (
             <div className="la-empty">
-              {data.message || data.error || 'Agent 尚未上报进展（等待 Agent 调用 progress 命令）'}
+              {data.message || data.error || t('taskModal.awaitingProgress')}
             </div>
           )
         )}
@@ -600,10 +594,11 @@ function LiveActivitySection({
 }
 
 function ActivityEntryView({ entry: a }: { entry: ActivityEntry }) {
+  const { t } = useTranslation();
   const time = fmtActivityTime(a.at);
   const agBadge = a.agent ? (
     <span style={{ fontSize: 9, color: 'var(--muted)', background: 'var(--panel)', padding: '1px 4px', borderRadius: 3, marginRight: 4 }}>
-      {AGENT_LABELS[a.agent] || a.agent}
+      {t(AGENT_LABELS[a.agent]) || a.agent}
     </span>
   ) : null;
 
@@ -611,7 +606,7 @@ function ActivityEntryView({ entry: a }: { entry: ActivityEntry }) {
     return (
       <div className="la-entry la-assistant">
         <span className="la-icon">🔄</span>
-        <span className="la-body">{agBadge}<b>当前进展：</b>{a.text}</span>
+        <span className="la-body">{agBadge}<b>{t('taskModal.currentProgressLabel')}</b>{a.text}</span>
         <span className="la-time">{time}</span>
       </div>
     );
@@ -626,7 +621,7 @@ function ActivityEntryView({ entry: a }: { entry: ActivityEntry }) {
     }
     return (
       <div className="la-entry" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
-        <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 2 }}>{agBadge}📝 执行计划</div>
+        <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 2 }}>{agBadge}{t('taskModal.executionPlan')}</div>
         {items.map((td) => {
           const icon = td.status === 'completed' ? '✅' : td.status === 'in-progress' ? '🔄' : '⬜';
           const d = diffMap.get(String(td.id));
@@ -638,9 +633,9 @@ function ActivityEntryView({ entry: a }: { entry: ActivityEntry }) {
           return (
             <div key={td.id} style={style}>
               {icon} {td.title}
-              {d && d.type === 'changed' && d.to === 'completed' && <span style={{ color: '#22c55e', fontSize: 9, marginLeft: 4 }}>✨刚完成</span>}
+              {d && d.type === 'changed' && d.to === 'completed' && <span style={{ color: '#22c55e', fontSize: 9, marginLeft: 4 }}>{t('taskModal.justCompleted')}</span>}
               {d && d.type === 'changed' && d.to !== 'completed' && <span style={{ color: '#f59e0b', fontSize: 9, marginLeft: 4 }}>↻{d.from}→{d.to}</span>}
-              {d && d.type === 'added' && <span style={{ color: '#3b82f6', fontSize: 9, marginLeft: 4 }}>🆕新增</span>}
+              {d && d.type === 'added' && <span style={{ color: '#3b82f6', fontSize: 9, marginLeft: 4 }}>{t('taskModal.newlyAdded')}</span>}
             </div>
           );
         })}

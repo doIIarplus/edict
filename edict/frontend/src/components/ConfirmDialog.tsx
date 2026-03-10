@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
   title: string;
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export default function ConfirmDialog({ title, message, okLabel, okClass, onOk, onCancel }: Props) {
+  const { t } = useTranslation();
   const [reason, setReason] = useState('');
 
   return (
@@ -21,11 +23,11 @@ export default function ConfirmDialog({ title, message, okLabel, okClass, onOk, 
           className="confirm-reason"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
-          placeholder="输入原因（可留空）"
+          placeholder={t('confirm.reasonPlaceholder')}
           rows={2}
         />
         <div className="confirm-btns">
-          <button className="btn btn-g" onClick={onCancel}>取消</button>
+          <button className="btn btn-g" onClick={onCancel}>{t('confirm.cancel')}</button>
           <button className={`btn btn-action ${okClass || ''}`} onClick={() => onOk(reason)}>
             {okLabel}
           </button>

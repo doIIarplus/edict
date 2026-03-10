@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useStore, isEdict } from '../store';
 
 export default function CourtCeremony() {
+  const { t } = useTranslation();
   const liveStatus = useStore((s) => s.liveStatus);
   const [show, setShow] = useState(false);
   const [out, setOut] = useState(false);
@@ -33,19 +35,19 @@ export default function CourtCeremony() {
   ).length;
 
   const d = new Date();
-  const days = ['日', '一', '二', '三', '四', '五', '六'];
-  const dateStr = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 · ${days[d.getDay()]}曜日`;
+  const days = t('ceremony.days', { returnObjects: true }) as string[];
+  const dateStr = t('ceremony.dateFormat', { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate(), dayName: days[d.getDay()] });
 
   return (
     <div className={`ceremony-bg${out ? ' out' : ''}`} onClick={skip}>
       <div className="crm-glow" />
-      <div className="crm-line1 in">🏛 早朝开始</div>
-      <div className="crm-line2 in">有事启奏，无事退朝</div>
+      <div className="crm-line1 in">{t('ceremony.courtBegins')}</div>
+      <div className="crm-line2 in">{t('ceremony.speakOrAdjourn')}</div>
       <div className="crm-line3 in">
-        待办 {pending} 件 · 已完成 {done} 件{overdue > 0 && ` · ⚠ 超期 ${overdue} 件`}
+        {t('ceremony.summary', { pending, done })}{overdue > 0 ? t('ceremony.overdue', { overdue }) : ''}
       </div>
       <div className="crm-date in">{dateStr}</div>
-      <div className="crm-skip">点击任意处跳过</div>
+      <div className="crm-skip">{t('ceremony.clickToSkip')}</div>
     </div>
   );
 }

@@ -1,6 +1,8 @@
-import { useStore, isEdict, STATE_LABEL, timeAgo } from '../store';
+import { useStore, isEdict, tState, timeAgo } from '../store';
 import type { Task } from '../api';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 
 // Agent maps built from agentConfig
 function useAgentMaps() {
@@ -22,28 +24,28 @@ function extractAgent(t: Task): string {
   return (t.org || '').replace(/省|部/g, '').toLowerCase();
 }
 
-function humanTitle(t: Task, labelMap: Record<string, string>): string {
+function humanTitle(t: Task, labelMap: Record<string, string>, tr: TFunction): string {
   let title = t.title || '';
-  if (title === 'heartbeat 会话') return '💓 心跳检测';
+  if (title === 'heartbeat 会话') return tr('sessions.heartbeat');
   const m = title.match(/^agent:(\w+):(\w+)/);
   if (m) {
     const agLabel = labelMap[m[1]] || m[1];
-    if (m[2] === 'main') return agLabel + ' · 主会话';
-    if (m[2] === 'subagent') return agLabel + ' · 子任务执行';
-    if (m[2] === 'cron') return agLabel + ' · 定时任务';
+    if (m[2] === 'main') return agLabel + ' · ' + tr('sessions.mainSession');
+    if (m[2] === 'subagent') return agLabel + ' · ' + tr('sessions.subtaskExec');
+    if (m[2] === 'cron') return agLabel + ' · ' + tr('sessions.cronTask');
     return agLabel + ' · ' + m[2];
   }
   return title.replace(/ 会话$/, '') || t.id;
 }
 
-function channelLabel(t: Task): { icon: string; text: string } {
+function channelLabel(t: Task, tr: TFunction): { icon: string; text: string } {
   const now = t.now || '';
-  if (now.includes('feishu/direct')) return { icon: '💬', text: '飞书对话' };
-  if (now.includes('feishu')) return { icon: '💬', text: '飞书' };
+  if (now.includes('feishu/direct')) return { icon: '💬', text: tr('sessions.feishuChat') };
+  if (now.includes('feishu')) return { icon: '💬', text: tr('sessions.feishu') };
   if (now.includes('webchat')) return { icon: '🌐', text: 'WebChat' };
-  if (now.includes('cron')) return { icon: '⏰', text: '定时' };
-  if (now.includes('direct')) return { icon: '📨', text: '直连' };
-  return { icon: '🔗', text: '会话' };
+  if (now.includes('cron')) return { icon: '⏰', text: tr('sessions.cron') };
+  if (now.includes('direct')) return { icon: '📨', text: tr('sessions.direct') };
+  return { icon: '🔗', text: tr('sessions.session') };
 }
 
 function lastMessage(t: Task): string {
@@ -61,6 +63,7 @@ function lastMessage(t: Task): string {
 }
 
 export default function SessionsPanel() {
+  const { t: tr } = useTranslation();
   const liveStatus = useStore((s) => s.liveStatus);
   const sessFilter = useStore((s) => s.sessFilter);
   const setSessFilter = useStore((s) => s.setSessFilter);
@@ -82,8 +85,8 @@ export default function SessionsPanel() {
       {/* Filters */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
         {[
-          { key: 'all', label: `全部 (${sessions.length})` },
-          { key: 'active', label: '活跃' },
+          { key: 'all', label: tr('sessions.all', { count: sessions.length }) },
+          { key: 'active', label: tr('sessions.active') },
           ...agentIds.slice(0, 8).map((id) => ({ key: id, label: labelMap[id] || id })),
         ].map((f) => (
           <span
@@ -100,7 +103,7 @@ export default function SessionsPanel() {
       <div className="sess-grid">
         {!filtered.length ? (
           <div style={{ fontSize: 13, color: 'var(--muted)', padding: 24, textAlign: 'center', gridColumn: '1/-1' }}>
-            暂无小任务/会话数据
+            {tr('sessions.noSessionData')}
           </div>
         ) : (
           filtered.map((t) => {
@@ -108,8 +111,8 @@ export default function SessionsPanel() {
             const emoji = emojiMap[agent] || '🏛️';
             const agLabel = labelMap[agent] || t.org || agent;
             const hb = t.heartbeat || { status: 'unknown' as const, label: '' };
-            const ch = channelLabel(t);
-            const title = humanTitle(t, labelMap);
+            const ch = channelLabel(t, tr);
+            const title = humanTitle(t, labelMap, tr);
             const msg = lastMessage(t);
             const sm = t.sourceMeta || {};
             const totalTk = (sm as Record<string, unknown>).totalTokens as number | undefined;
@@ -131,7 +134,7 @@ export default function SessionsPanel() {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span title={hb.label || ''}>{hbDot}</span>
-                    <span className={`tag st-${st}`} style={{ fontSize: 10 }}>{STATE_LABEL[st] || st}</span>
+                    <span className={`tag st-${st}`} style={{ fontSize: 10 }}>{tState(st)}</span>
                   </div>
                 </div>
                 <div className="sc-title">{title}</div>
@@ -169,10 +172,11 @@ function SessionDetailModal({
   emojiMap: Record<string, string>;
   onClose: () => void;
 }) {
+  const { t: tr } = useTranslation();
   const agent = extractAgent(t);
   const emoji = emojiMap[agent] || '🏛️';
-  const title = humanTitle(t, labelMap);
-  const ch = channelLabel(t);
+  const title = humanTitle(t, labelMap, tr);
+  const ch = channelLabel(t, tr);
   const hb = t.heartbeat || { status: 'unknown' as const, label: '' };
   const sm = t.sourceMeta || {};
   const acts = t.activity || [];
@@ -190,7 +194,7 @@ function SessionDetailModal({
           <div style={{ fontSize: 11, color: 'var(--acc)', fontWeight: 700, letterSpacing: '.04em', marginBottom: 4 }}>{t.id}</div>
           <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 6 }}>{emoji} {title}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
-            <span className={`tag st-${st}`}>{STATE_LABEL[st] || st}</span>
+            <span className={`tag st-${st}`}>{tState(st)}</span>
             <span style={{ fontSize: 11, color: 'var(--muted)' }}>{ch.icon} {ch.text}</span>
             {hb.label && <span style={{ fontSize: 11 }}>{hb.label}</span>}
           </div>
@@ -200,35 +204,35 @@ function SessionDetailModal({
             {totalTokens != null && (
               <div style={{ background: 'var(--panel2)', padding: '10px 16px', borderRadius: 8, fontSize: 12 }}>
                 <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--acc)' }}>{totalTokens.toLocaleString()}</div>
-                <div style={{ color: 'var(--muted)', fontSize: 10 }}>总 Tokens</div>
+                <div style={{ color: 'var(--muted)', fontSize: 10 }}>{tr('sessions.totalTokens')}</div>
               </div>
             )}
             {inputTokens != null && (
               <div style={{ background: 'var(--panel2)', padding: '10px 16px', borderRadius: 8, fontSize: 12 }}>
                 <div style={{ fontSize: 16, fontWeight: 700 }}>{inputTokens.toLocaleString()}</div>
-                <div style={{ color: 'var(--muted)', fontSize: 10 }}>输入</div>
+                <div style={{ color: 'var(--muted)', fontSize: 10 }}>{tr('sessions.input')}</div>
               </div>
             )}
             {outputTokens != null && (
               <div style={{ background: 'var(--panel2)', padding: '10px 16px', borderRadius: 8, fontSize: 12 }}>
                 <div style={{ fontSize: 16, fontWeight: 700 }}>{outputTokens.toLocaleString()}</div>
-                <div style={{ color: 'var(--muted)', fontSize: 10 }}>输出</div>
+                <div style={{ color: 'var(--muted)', fontSize: 10 }}>{tr('sessions.output')}</div>
               </div>
             )}
           </div>
 
           {/* Recent Activity */}
           <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>
-            📋 最近活动 <span style={{ fontWeight: 400, color: 'var(--muted)' }}>({acts.length} 条)</span>
+            {tr('sessions.recentActivity', { count: acts.length })}
           </div>
           <div style={{ maxHeight: 350, overflowY: 'auto', border: '1px solid var(--line)', borderRadius: 10, background: 'var(--panel2)' }}>
             {!acts.length ? (
-              <div style={{ padding: 16, color: 'var(--muted)', fontSize: 12, textAlign: 'center' }}>暂无活动记录</div>
+              <div style={{ padding: 16, color: 'var(--muted)', fontSize: 12, textAlign: 'center' }}>{tr('sessions.noActivityRecords')}</div>
             ) : (
               acts.slice(-15).reverse().map((a, i) => {
                 const kind = a.kind || '';
                 const kIcon = kind === 'assistant' ? '🤖' : kind === 'tool' ? '🔧' : kind === 'user' ? '👤' : '📝';
-                const kLabel = kind === 'assistant' ? '回复' : kind === 'tool' ? '工具' : kind === 'user' ? '用户' : '事件';
+                const kLabel = kind === 'assistant' ? tr('sessions.reply') : kind === 'tool' ? tr('sessions.tool') : kind === 'user' ? tr('sessions.user') : tr('sessions.event');
                 let txt = (a.text || '').replace(/\[\[.*?\]\]/g, '').replace(/\*\*/g, '').trim();
                 if (txt.length > 200) txt = txt.substring(0, 200) + '…';
                 const time = ((a.at as string) || '').substring(11, 19);

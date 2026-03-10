@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useStore } from '../store';
 import { api } from '../api';
 
@@ -16,6 +17,7 @@ const FALLBACK_MODELS = [
 ];
 
 export default function ModelConfig() {
+  const { t } = useTranslation();
   const agentConfig = useStore((s) => s.agentConfig);
   const changeLog = useStore((s) => s.changeLog);
   const loadAgentConfig = useStore((s) => s.loadAgentConfig);
@@ -39,7 +41,7 @@ export default function ModelConfig() {
   }, [agentConfig]);
 
   if (!agentConfig?.agents) {
-    return <div className="empty" style={{ gridColumn: '1/-1' }}>⚠️ 请先启动本地服务器</div>;
+    return <div className="empty" style={{ gridColumn: '1/-1' }}>{t('models.serverNotStarted')}</div>;
   }
 
   const models = agentConfig.knownModels?.length
@@ -58,18 +60,18 @@ export default function ModelConfig() {
   const applyModel = async (agentId: string) => {
     const model = selMap[agentId];
     if (!model) return;
-    setStatusMap((p) => ({ ...p, [agentId]: { cls: 'pending', text: '⟳ 提交中…' } }));
+    setStatusMap((p) => ({ ...p, [agentId]: { cls: 'pending', text: t('models.submitting') } }));
     try {
       const r = await api.setModel(agentId, model);
       if (r.ok) {
-        setStatusMap((p) => ({ ...p, [agentId]: { cls: 'ok', text: '✅ 已提交，Gateway 重启中（约5秒）' } }));
-        toast(agentId + ' 模型已更改', 'ok');
+        setStatusMap((p) => ({ ...p, [agentId]: { cls: 'ok', text: t('models.submitted') } }));
+        toast(agentId + ' ' + t('models.modelChanged'), 'ok');
         setTimeout(() => loadAgentConfig(), 5500);
       } else {
-        setStatusMap((p) => ({ ...p, [agentId]: { cls: 'err', text: '❌ ' + (r.error || '错误') } }));
+        setStatusMap((p) => ({ ...p, [agentId]: { cls: 'err', text: '❌ ' + (r.error || t('models.error')) } }));
       }
     } catch {
-      setStatusMap((p) => ({ ...p, [agentId]: { cls: 'err', text: '❌ 无法连接服务器' } }));
+      setStatusMap((p) => ({ ...p, [agentId]: { cls: 'err', text: t('models.cannotConnect') } }));
     }
   };
 
@@ -93,7 +95,7 @@ export default function ModelConfig() {
                 </div>
               </div>
               <div className="mc-cur">
-                当前: <b>{ag.model}</b>
+                {t('models.current')} <b>{ag.model}</b>
               </div>
               <select className="msel" value={sel} onChange={(e) => handleSelect(ag.id, e.target.value)}>
                 {models.map((m) => (
@@ -104,10 +106,10 @@ export default function ModelConfig() {
               </select>
               <div className="mc-btns">
                 <button className="btn btn-p" disabled={!changed} onClick={() => applyModel(ag.id)}>
-                  应用
+                  {t('models.apply')}
                 </button>
                 <button className="btn btn-g" onClick={() => resetMC(ag.id)}>
-                  重置
+                  {t('models.reset')}
                 </button>
               </div>
               {st && <div className={`mc-st ${st.cls}`}>{st.text}</div>}
@@ -118,10 +120,10 @@ export default function ModelConfig() {
 
       {/* Change Log */}
       <div style={{ marginTop: 24 }}>
-        <div className="sec-title">变更日志</div>
+        <div className="sec-title">{t('models.changeLog')}</div>
         <div className="cl-list">
           {!changeLog?.length ? (
-            <div style={{ fontSize: 12, color: 'var(--muted)', padding: '8px 0' }}>暂无变更</div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', padding: '8px 0' }}>{t('models.noChanges')}</div>
           ) : (
             [...changeLog]
               .reverse()
@@ -143,7 +145,7 @@ export default function ModelConfig() {
                           marginLeft: 4,
                         }}
                       >
-                        ⚠ 已回滚
+                        {t('models.rolledBack')}
                       </span>
                     )}
                   </span>
